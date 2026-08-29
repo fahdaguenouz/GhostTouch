@@ -11,6 +11,7 @@ class GhostTouchApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: 'GhostTouch',
       theme: ThemeData.dark().copyWith(
         primaryColor: Colors.blueAccent,
