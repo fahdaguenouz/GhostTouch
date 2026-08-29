@@ -55,26 +55,52 @@ ghosttouch/
 * **Native:** Kotlin (Android SDK)
 * **APIs:** `MediaProjection`, `AccessibilityService`, `LocationManager`
 
-## 🏃 Getting Started
+# 🏃 Getting Started & Usage Guide
 
-### Prerequisites
-* Node.js (v18+)
-* npm workspaces
+Follow these instructions to run the GhostTouch system locally.
 
-### Running the Web Dashboard (Mock Mode)
+### 1. Web Dashboard (`apps/web`)
 
-The web dashboard is currently equipped with a mock connection flow to test the UI and layouts.
+The web dashboard is a React application built with Vite. It serves as the control center where you can view the phone screen and send touch commands.
 
+**Installation & Running:**
 ```bash
-# 1. Install dependencies at the root to link workspaces
+# 1. Install all dependencies from the root directory
 npm install
 
 # 2. Start the web dashboard dev server
 cd apps/web
 npm run dev
 ```
+Visit `http://localhost:5173` in your browser.
 
-Visit `http://localhost:5173` to see the dashboard. Enter any 6-digit PIN to trigger the mock connection and see the telemetry, map, and stream UI come alive.
+### 2. Mobile Client (`apps/mobile`)
+
+The Android application is built with Flutter. It captures the screen, handles native touch injection via Accessibility Services, and communicates with the web dashboard.
+
+**Installation & Running:**
+1. Ensure you have the [Flutter SDK](https://docs.flutter.dev/get-started/install) installed and an Android device connected via ADB (or a high-performance emulator).
+2. Install dependencies and run:
+```bash
+cd apps/mobile
+flutter pub get
+flutter run
+```
+
+### 3. How to Connect (The Code Digits)
+
+GhostTouch uses a 6-digit **PIN** (Code Digits) to securely pair the web dashboard with your mobile device.
+
+1. **Launch the Mobile App:** Open the GhostTouch app on your Android device. The app will automatically generate a random **6-digit PIN** displayed in large text on the center of the screen.
+2. **Launch the Web Dashboard:** Open the dashboard in your browser (`http://localhost:5173`).
+3. **Enter the PIN:** In the Web Dashboard's "Session Control" panel on the right, type in the exact 6-digit PIN shown on your phone.
+4. **Connect:** Click "Connect to Device". The dashboard will initiate a WebRTC handshake with the phone.
+5. **Grant Permissions (Android):** When prompted on your phone, you must explicitly tap **"Start Now"** to allow GhostTouch to capture your screen, and you must enable the GhostTouch Accessibility Service in your Android settings to allow remote touch control.
+
+Once paired, the phone screen will appear in the web browser, and any clicks or drags inside the video player will be injected directly into the Android device!
+
+---
+*Built for seamless, encrypted remote control and telemetry.*
 
 ## 🔒 Security Constraints
 
