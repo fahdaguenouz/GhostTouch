@@ -1,5 +1,4 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.ghosttouch.app">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
@@ -12,7 +11,7 @@
         android:label="GhostTouch"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
-        
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -32,12 +31,12 @@
         </activity>
 
         <service
-            android:name=".Services.CaptureService"
+            android:name=".services.CaptureService"
             android:foregroundServiceType="mediaProjection"
             android:exported="false"/>
 
         <service
-            android:name=".Services.TouchService"
+            android:name=".services.TouchService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
             android:exported="true">
             <intent-filter>
@@ -47,7 +46,6 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
         </service>
-
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
