@@ -5,5 +5,11 @@
     "apps/*",
     "packages/*",
     "infrastructure/*"
-  ]
+  ],
+  "scripts": {
+    "dev:web": "npm run dev -w apps/web",
+    "dev:signaling": "npm run dev -w infrastructure/signaling",
+    "start:signaling": "npm start -w infrastructure/signaling",
+    "build": "npm run build -w apps/web"
+  }
 }

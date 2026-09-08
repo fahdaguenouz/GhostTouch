@@ -59,7 +59,7 @@ ghosttouch/
 
 Follow these instructions to run the GhostTouch system locally.
 
-### 1. Web Dashboard (`apps/web`)
+### 1. Start signaling and the Web Dashboard
 
 The web dashboard is a React application built with Vite. It serves as the control center where you can view the phone screen and send touch commands.
 
@@ -68,9 +68,11 @@ The web dashboard is a React application built with Vite. It serves as the contr
 # 1. Install all dependencies from the root directory
 npm install
 
-# 2. Start the web dashboard dev server
-cd apps/web
-npm run dev
+# Terminal 1: PIN pairing + WebRTC signaling
+npm run dev:signaling
+
+# Terminal 2: dashboard (listen on the LAN so a phone can reach it)
+cd apps/web && npm run dev -- --host 0.0.0.0
 ```
 Visit `http://localhost:5173` in your browser.
 
@@ -80,12 +82,14 @@ The Android application is built with Flutter. It captures the screen, handles n
 
 **Installation & Running:**
 1. Ensure you have the [Flutter SDK](https://docs.flutter.dev/get-started/install) installed and an Android device connected via ADB (or a high-performance emulator).
-2. Install dependencies and run:
+2. Install dependencies and run. Replace `192.168.1.20` with the PC's LAN IP (Android emulators can use `10.0.2.2`):
 ```bash
 cd apps/mobile
 flutter pub get
-flutter run
+flutter run --dart-define=SIGNALING_URL=ws://192.168.1.20:8787
 ```
+
+The Android build permits plain `ws://` for local-network development. Use a TLS reverse proxy and `wss://` when exposing signaling outside your LAN. A TURN server is still required for reliable connections across restrictive mobile/Wi-Fi networks.
 
 ### 3. How to Connect (The Code Digits)
 

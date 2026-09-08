@@ -2,18 +2,20 @@ import React, { useState } from 'react';
 import { KeyRound, Link, Link2Off } from 'lucide-react';
 import './connection.css';
 
-export type ConnectionState = 'DISCONNECTED' | 'CONNECTING' | 'LIVE';
+export type ConnectionState = 'DISCONNECTED' | 'CONNECTING' | 'LIVE' | 'RECONNECTING';
 
 interface ConnectionManagerProps {
   connectionState: ConnectionState;
   onConnect: (pin: string) => void;
   onDisconnect: () => void;
+  error?: string | null;
 }
 
 export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
   connectionState,
   onConnect,
   onDisconnect,
+  error,
 }) => {
   const [pin, setPin] = useState('');
 
@@ -65,6 +67,7 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
           </button>
         </div>
       )}
+      {error && <p className="connection-error" role="alert">{error}</p>}
     </div>
   );
 };

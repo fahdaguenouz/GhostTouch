@@ -80,6 +80,13 @@
   z-index: 1;
 }
 
+.location-details {
+  padding: 10px 14px;
+  color: var(--text-secondary);
+  font-family: monospace;
+  font-size: 12px;
+}
+
 .loading {
   display: flex;
   align-items: center;

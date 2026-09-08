@@ -61,6 +61,9 @@ export const LocationMap: React.FC<LocationMapProps> = ({ location }) => {
           <RecenterAutomatically lat={latitude} lng={longitude} />
         </MapContainer>
       </div>
+      <div className="location-details">
+        {latitude.toFixed(6)}, {longitude.toFixed(6)} · ±{Math.round(location.accuracy)} m · {new Date(location.timestamp).toLocaleTimeString()}
+      </div>
     </div>
   );
 };

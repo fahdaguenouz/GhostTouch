@@ -88,6 +88,13 @@
   border-color: rgba(239, 68, 68, 0.3);
 }
 
+.connection-error {
+  margin: 12px 0 0;
+  color: #ff9b87;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .disconnect-btn:hover {
   background: rgba(239, 68, 68, 0.1);
   border-color: var(--danger);
