@@ -16,9 +16,15 @@ export function useRemoteSession() {
   const channelRef = useRef<RTCDataChannel | null>(null);
   const pendingCandidates = useRef<RTCIceCandidateInit[]>([]);
   const intentionalClose = useRef(false);
+  const sessionId = useRef(0);
+  const connectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const deviceIp = useRef<string | null>(null);
 
   const cleanup = useCallback((notifyServer = false) => {
+    sessionId.current += 1;
     intentionalClose.current = true;
+    if (connectionTimer.current) clearTimeout(connectionTimer.current);
+    connectionTimer.current = null;
     if (notifyServer && socketRef.current?.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify({ type: 'LEAVE_SESSION' }));
     }
@@ -29,6 +35,7 @@ export function useRemoteSession() {
     peerRef.current = null;
     socketRef.current = null;
     pendingCandidates.current = [];
+    deviceIp.current = null;
     setStream(null);
     setTelemetry(null);
     setDeviceLocation(null);
@@ -40,7 +47,7 @@ export function useRemoteSession() {
   const handlePhoneMessage = useCallback((raw: string) => {
     try {
       const message = JSON.parse(raw) as PhoneIncomingMessage;
-      if (message.type === 'TELEMETRY_UPDATE') setTelemetry(message.payload);
+      if (message.type === 'TELEMETRY_UPDATE') setTelemetry({ ...message.payload, publicIp: deviceIp.current || message.payload.publicIp });
       if (message.type === 'LOCATION_UPDATE') setDeviceLocation(message.payload);
     } catch { setError('The phone sent an unreadable data packet.'); }
   }, []);
@@ -48,8 +55,14 @@ export function useRemoteSession() {
   const connect = useCallback(async (pin: string) => {
     cleanup(false);
     intentionalClose.current = false;
+    const currentSession = sessionId.current;
     setError(null);
     setConnectionState('CONNECTING');
+    connectionTimer.current = setTimeout(() => {
+      if (sessionId.current !== currentSession) return;
+      cleanup(false);
+      setError('Connection timed out. Confirm the PIN, screen permission, and that both devices can reach signaling.');
+    }, 30000);
 
     try {
       const socket = new WebSocket(configuredUrl || defaultUrl);
@@ -60,11 +73,21 @@ export function useRemoteSession() {
       const channel = peer.createDataChannel('ghosttouch', { ordered: true });
       channelRef.current = channel;
       channel.onmessage = (event) => handlePhoneMessage(String(event.data));
-      channel.onopen = () => setConnectionState('LIVE');
-      channel.onclose = () => { if (!intentionalClose.current) setConnectionState('RECONNECTING'); };
-      peer.ontrack = (event) => setStream(event.streams[0] || new MediaStream([event.track]));
+      channel.onopen = () => {
+        if (sessionId.current !== currentSession) return;
+        if (connectionTimer.current) clearTimeout(connectionTimer.current);
+        connectionTimer.current = null;
+        setConnectionState('LIVE');
+      };
+      channel.onclose = () => { if (sessionId.current === currentSession && !intentionalClose.current) setConnectionState('RECONNECTING'); };
+      peer.ontrack = (event) => { if (sessionId.current === currentSession) setStream(event.streams[0] || new MediaStream([event.track])); };
       peer.onconnectionstatechange = () => {
-        if (peer.connectionState === 'connected') setConnectionState('LIVE');
+        if (sessionId.current !== currentSession) return;
+        if (peer.connectionState === 'connected') {
+          if (connectionTimer.current) clearTimeout(connectionTimer.current);
+          connectionTimer.current = null;
+          setConnectionState('LIVE');
+        }
         if (peer.connectionState === 'failed' || peer.connectionState === 'disconnected') {
           setConnectionState('RECONNECTING');
           setError('The peer connection was interrupted. Check both devices and reconnect.');
@@ -78,27 +101,27 @@ export function useRemoteSession() {
 
       socket.onopen = () => socket.send(JSON.stringify({ type: 'JOIN_SESSION', pin }));
       socket.onerror = () => {
+        if (sessionId.current !== currentSession) return;
+        cleanup(false);
         setError(`Cannot reach signaling at ${configuredUrl || defaultUrl}. Start the signaling service and check the URL.`);
-        setConnectionState('DISCONNECTED');
       };
-      socket.onclose = () => { if (!intentionalClose.current && peer.connectionState !== 'connected') setConnectionState('DISCONNECTED'); };
+      socket.onclose = () => {
+        if (sessionId.current === currentSession && !intentionalClose.current) {
+          cleanup(false);
+          setError('Signaling disconnected. Start a new session.');
+        }
+      };
       socket.onmessage = async (event) => {
+        if (sessionId.current !== currentSession) return;
+        try {
         const message = JSON.parse(String(event.data));
         if (message.type === 'ERROR') {
-          setError(message.message || 'Pairing failed.');
           cleanup(false);
+          setError(message.message || 'Pairing failed.');
           return;
         }
         if (message.type === 'SESSION_JOINED') {
-          if (message.deviceIp) setTelemetry((value) => ({
-            batteryLevel: value?.batteryLevel ?? 0,
-            isCharging: value?.isCharging ?? false,
-            networkType: value?.networkType ?? 'UNKNOWN',
-            nativeWidth: value?.nativeWidth ?? 0,
-            nativeHeight: value?.nativeHeight ?? 0,
-            ...value,
-            publicIp: message.deviceIp,
-          }));
+          deviceIp.current = typeof message.deviceIp === 'string' ? message.deviceIp : null;
           const offer = await peer.createOffer();
           await peer.setLocalDescription(offer);
           socket.send(JSON.stringify({ type: 'OFFER', description: peer.localDescription }));
@@ -113,13 +136,17 @@ export function useRemoteSession() {
           else pendingCandidates.current.push(message.candidate);
         }
         if (message.type === 'PEER_DISCONNECTED') {
-          setError('The phone ended the session.');
           cleanup(false);
+          setError('The phone ended the session.');
+        }
+        } catch (reason) {
+          cleanup(false);
+          setError(reason instanceof Error ? reason.message : 'Invalid signaling response.');
         }
       };
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to start the connection.');
       cleanup(false);
+      setError(reason instanceof Error ? reason.message : 'Unable to start the connection.');
     }
   }, [cleanup, handlePhoneMessage]);
 

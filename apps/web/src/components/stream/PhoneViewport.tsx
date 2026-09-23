@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { translateCoordinates } from '../../hooks/useCoordinateScaler';
 import type { TouchEventPayload } from '@ghosttouch/protocol';
 import './stream.css';
@@ -13,38 +13,39 @@ interface PhoneViewportProps {
 export const PhoneViewport: React.FC<PhoneViewportProps> = ({
   stream,
   onCoordinatesMap,
-  nativeWidth = 1080,
-  nativeHeight = 2340
+  nativeWidth,
+  nativeHeight
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
+  const dragging = useRef(false);
 
   useEffect(() => {
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
-    }
+    if (videoRef.current) videoRef.current.srcObject = stream;
   }, [stream]);
 
-  const handleMouseEvent = (e: React.MouseEvent<HTMLVideoElement>) => {
-    if (e.type === 'mousemove' && !isDragging) return;
-    
-    if (e.type === 'mousedown') setIsDragging(true);
-    if (e.type === 'mouseup' || e.type === 'mouseleave') setIsDragging(false);
-
-    // Don't process map on leave, just stop dragging
-    if (e.type === 'mouseleave') return;
-
-    const payload = translateCoordinates(e, nativeWidth, nativeHeight);
+  const handlePointerEvent = (e: React.PointerEvent<HTMLVideoElement>) => {
+    if (!stream || e.type === 'pointermove' && !dragging.current) return;
+    if (e.type === 'pointerdown') {
+      dragging.current = true;
+      e.currentTarget.setPointerCapture(e.pointerId);
+    }
+    const width = nativeWidth || e.currentTarget.videoWidth;
+    const height = nativeHeight || e.currentTarget.videoHeight;
+    const payload = translateCoordinates(e, width, height);
     if (payload) {
       onCoordinatesMap(payload);
+    }
+    if (e.type === 'pointerup' || e.type === 'pointercancel') {
+      dragging.current = false;
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
     }
   };
 
   return (
     <div className="phone-viewport-container glass-panel">
       <div className="viewport-header">
-        <div className="status-dot live"></div>
-        <span>Live Stream</span>
+        <div className={`status-dot ${stream ? 'live' : ''}`}></div>
+        <span>{stream ? 'Live Stream' : 'Awaiting Stream'}</span>
       </div>
       <div className="video-wrapper">
         <video
@@ -53,10 +54,10 @@ export const PhoneViewport: React.FC<PhoneViewportProps> = ({
           playsInline
           muted
           className="phone-video"
-          onMouseDown={handleMouseEvent}
-          onMouseMove={handleMouseEvent}
-          onMouseUp={handleMouseEvent}
-          onMouseLeave={handleMouseEvent}
+          onPointerDown={handlePointerEvent}
+          onPointerMove={handlePointerEvent}
+          onPointerUp={handlePointerEvent}
+          onPointerCancel={handlePointerEvent}
         />
         {!stream && (
           <div className="no-signal">

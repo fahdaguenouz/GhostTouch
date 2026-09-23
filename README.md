@@ -10,10 +10,10 @@ Once a session has been explicitly authorized on the Android device, GhostTouch 
 * 🖱️ Remote touch and gesture interaction
 * 📍 Live device location and telemetry
 * 🔋 Battery and network information
-* 🌐 LAN and WAN connectivity through WebRTC
+* 🌐 LAN connectivity through WebRTC; WAN requires your own TLS/TURN setup
 * 🔐 Encrypted peer-to-peer communication
 * 🔄 WebSocket-based signaling
-* 🛰️ STUN/TURN support for NAT traversal
+* 🛰️ STUN support for NAT traversal (TURN is not bundled)
 
 GhostTouch is designed for **personal devices, authorized remote-support scenarios, development, testing, and controlled security laboratories**.
 
@@ -23,7 +23,7 @@ GhostTouch is designed for **personal devices, authorized remote-support scenari
 * **Low-Latency Screen Mirroring:** Hardware-accelerated screen capture on Android piped directly to your web browser via WebRTC.
 * **Remote Touch Injection:** Seamless conversion of browser clicks and drags into native Android gestures using Accessibility Services.
 * **Live Telemetry & GPS:** Real-time updates for battery life, network status, screen resolution, and GPS coordinates via WebRTC Data Channels.
-* **WAN & LAN Support:** Peer-to-peer connections facilitated by a WebSocket signaling server and STUN/TURN relays for traversing strict NATs.
+* **LAN Support:** Peer-to-peer connections facilitated by a WebSocket signaling server. TURN is not bundled for strict NATs.
 * **Monorepo Architecture:** Clean separation of concerns with shared TypeScript protocols between the Web Client and signaling infrastructure.
 
 ## 🏗️ Architecture
@@ -50,7 +50,7 @@ ghosttouch/
 * **Mapping:** Leaflet & React-Leaflet
 * **Connection:** WebRTC (PeerConnection & DataChannels)
 
-### Mobile Endpoint (`apps/mobile`) - Upcoming
+### Mobile Endpoint (`apps/mobile`)
 * **UI:** Flutter (Dart)
 * **Native:** Kotlin (Android SDK)
 * **APIs:** `MediaProjection`, `AccessibilityService`, `LocationManager`
@@ -89,17 +89,19 @@ flutter pub get
 flutter run --dart-define=SIGNALING_URL=ws://192.168.1.20:8787
 ```
 
+You can also enter the PC signaling URL directly on the phone before starting a session. A debug APK built without a `SIGNALING_URL` defaults to the Android emulator address, so change that field when using a physical phone.
+
 The Android build permits plain `ws://` for local-network development. Use a TLS reverse proxy and `wss://` when exposing signaling outside your LAN. A TURN server is still required for reliable connections across restrictive mobile/Wi-Fi networks.
 
 ### 3. How to Connect (The Code Digits)
 
 GhostTouch uses a 6-digit **PIN** (Code Digits) to securely pair the web dashboard with your mobile device.
 
-1. **Launch the Mobile App:** Open the GhostTouch app on your Android device. The app will automatically generate a random **6-digit PIN** displayed in large text on the center of the screen.
+1. **Launch the Mobile App:** Enter the PC signaling URL, tap **Start a support session**, approve Android's screen-capture prompt, then read the server-generated six-digit PIN.
 2. **Launch the Web Dashboard:** Open the dashboard in your browser (`http://localhost:5173`).
 3. **Enter the PIN:** In the Web Dashboard's "Session Control" panel on the right, type in the exact 6-digit PIN shown on your phone.
 4. **Connect:** Click "Connect to Device". The dashboard will initiate a WebRTC handshake with the phone.
-5. **Grant Permissions (Android):** When prompted on your phone, you must explicitly tap **"Start Now"** to allow GhostTouch to capture your screen, and you must enable the GhostTouch Accessibility Service in your Android settings to allow remote touch control.
+5. **Grant Permissions (Android):** Allow location to show GPS. Enable the GhostTouch Accessibility Service in Android settings to allow remote touch control. The phone can stop sharing at any time.
 
 Once paired, the phone screen will appear in the web browser, and any clicks or drags inside the video player will be injected directly into the Android device!
 

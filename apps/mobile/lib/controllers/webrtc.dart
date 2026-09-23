@@ -5,12 +5,12 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class WebRTCController {
-  WebRTCController({required this.onPin, required this.onStatus, required this.onError});
+  WebRTCController({required this.onPin, required this.onStatus, required this.onError, required this.signalingUrl});
   final void Function(String) onPin;
   final void Function(String) onStatus;
   final void Function(String) onError;
   static const _native = MethodChannel('com.ghosttouch/native');
-  static const _signalingUrl = String.fromEnvironment('SIGNALING_URL', defaultValue: 'ws://10.0.2.2:8787');
+  final String signalingUrl;
   RTCPeerConnection? _peer;
   RTCDataChannel? _channel;
   MediaStream? _screen;
@@ -18,9 +18,19 @@ class WebRTCController {
   StreamSubscription? _subscription;
   Timer? _timer;
   String? _observedIp;
+  final List<RTCIceCandidate> _pendingCandidates = [];
+  bool _hasRemoteDescription = false;
+  bool _running = false;
 
   Future<void> start() async {
     await stop();
+    final uri = Uri.tryParse(signalingUrl);
+    if (uri == null || (uri.scheme != 'ws' && uri.scheme != 'wss') || uri.host.isEmpty) {
+      onStatus('STOPPED');
+      onError('Enter a valid ws:// or wss:// signaling URL first.');
+      return;
+    }
+    _running = true;
     onStatus('REQUESTING PERMISSIONS');
     try {
       final locationGranted = await _native.invokeMethod<bool>('requestLocationPermission') ?? false;
@@ -28,11 +38,11 @@ class WebRTCController {
       _screen = await navigator.mediaDevices.getDisplayMedia({'audio': false, 'video': {'frameRate': 24}});
       await _createPeer();
       onStatus('CONNECTING TO SIGNALING');
-      _socket = WebSocketChannel.connect(Uri.parse(_signalingUrl));
+      _socket = WebSocketChannel.connect(uri);
       await _socket!.ready;
       _subscription = _socket!.stream.listen(_handleSignal,
-        onError: (Object e) { onStatus('CONNECTION ERROR'); onError('Cannot reach $_signalingUrl: $e'); },
-        onDone: () => onStatus('SIGNALING DISCONNECTED'));
+        onError: (Object e) { if (_running) { onStatus('CONNECTION ERROR'); onError('Cannot reach $signalingUrl: $e'); } },
+        onDone: () { if (_running) onStatus('SIGNALING DISCONNECTED'); });
       _sendSignal({'type': 'REGISTER_DEVICE'});
     } catch (e) {
       onStatus('STOPPED');
@@ -42,6 +52,8 @@ class WebRTCController {
   }
 
   Future<void> _createPeer() async {
+    _pendingCandidates.clear();
+    _hasRemoteDescription = false;
     _peer = await createPeerConnection({'iceServers': [{'urls': 'stun:stun.l.google.com:19302'}], 'sdpSemantics': 'unified-plan'});
     for (final track in _screen!.getTracks()) { await _peer!.addTrack(track, _screen!); }
     _peer!.onIceCandidate = (candidate) {
@@ -85,15 +97,29 @@ class WebRTCController {
         case 'OFFER':
           final description = message['description'] as Map<String, dynamic>;
           await _peer!.setRemoteDescription(RTCSessionDescription(description['sdp'], description['type']));
+          _hasRemoteDescription = true;
+          for (final candidate in _pendingCandidates) { await _peer!.addCandidate(candidate); }
+          _pendingCandidates.clear();
           final answer = await _peer!.createAnswer();
           await _peer!.setLocalDescription(answer);
           _sendSignal({'type': 'ANSWER', 'description': answer.toMap()});
           break;
         case 'ICE_CANDIDATE':
           final candidate = message['candidate'] as Map<String, dynamic>?;
-          if (candidate != null) await _peer!.addCandidate(RTCIceCandidate(candidate['candidate'], candidate['sdpMid'], candidate['sdpMLineIndex']));
+          if (candidate != null) {
+            final ice = RTCIceCandidate(candidate['candidate'], candidate['sdpMid'], candidate['sdpMLineIndex']);
+            if (_hasRemoteDescription) { await _peer!.addCandidate(ice); }
+            else { _pendingCandidates.add(ice); }
+          }
           break;
         case 'PEER_DISCONNECTED':
+          _timer?.cancel();
+          _timer = null;
+          await _channel?.close();
+          _channel = null;
+          await _peer?.close();
+          _peer = null;
+          if (_running && _screen != null) await _createPeer();
           onStatus('WAITING FOR YOUR COMPUTER');
           break;
         case 'ERROR':
@@ -130,6 +156,7 @@ class WebRTCController {
   void _sendData(Map<String, dynamic> value) => _channel?.send(RTCDataChannelMessage(jsonEncode(value)));
 
   Future<void> stop() async {
+    _running = false;
     _timer?.cancel(); _timer = null;
     await _subscription?.cancel(); _subscription = null;
     await _socket?.sink.close(); _socket = null;

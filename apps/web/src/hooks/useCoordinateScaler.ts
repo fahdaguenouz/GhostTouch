@@ -1,8 +1,8 @@
-import React from 'react';
+import type React from 'react';
 import type { TouchEventPayload } from '@ghosttouch/protocol';
 
 export const translateCoordinates = (
-  event: React.MouseEvent<HTMLVideoElement>,
+  event: React.PointerEvent<HTMLVideoElement>,
   phoneNativeWidth: number,
   phoneNativeHeight: number
 ): TouchEventPayload | null => {
@@ -10,11 +10,11 @@ export const translateCoordinates = (
   const rect = video.getBoundingClientRect();
 
   // Get mouse coordinates relative to the video container
-  const relativeX = event.clientX - rect.left;
-  const relativeY = event.clientY - rect.top;
+  const relativeX = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
+  const relativeY = Math.min(Math.max(event.clientY - rect.top, 0), rect.height);
 
   // Verify click is within the active video boundary
-  if (relativeX < 0 || relativeX > rect.width || relativeY < 0 || relativeY > rect.height) {
+  if (!rect.width || !rect.height || phoneNativeWidth <= 0 || phoneNativeHeight <= 0) {
     return null;
   }
 
@@ -24,7 +24,7 @@ export const translateCoordinates = (
 
   return {
     type: 'TOUCH',
-    action: event.type === 'mousedown' ? 'DOWN' : event.type === 'mousemove' ? 'MOVE' : 'UP',
+    action: event.type === 'pointerdown' ? 'DOWN' : event.type === 'pointermove' ? 'MOVE' : 'UP',
     x: phoneX,
     y: phoneY,
   };

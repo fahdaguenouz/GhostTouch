@@ -22,6 +22,8 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   late final WebRTCController controller;
+  static const defaultSignalingUrl = String.fromEnvironment('SIGNALING_URL', defaultValue: 'ws://10.0.2.2:8787');
+  late final TextEditingController urlController;
   String pin = '------';
   String status = 'NOT SHARING';
   String? error;
@@ -30,7 +32,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    urlController = TextEditingController(text: defaultSignalingUrl);
     controller = WebRTCController(
+      signalingUrl: urlController.text.trim(),
       onPin: (v) { if (mounted) setState(() => pin = v); },
       onStatus: (v) { if (mounted) setState(() => status = v); },
       onError: (v) { if (mounted) setState(() => error = v); },
@@ -39,12 +43,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> toggleSharing() async {
     setState(() { active = !active; error = null; });
-    if (active) { await controller.start(); }
+    if (active) {
+      controller = WebRTCController(
+        signalingUrl: urlController.text.trim(),
+        onPin: (v) { if (mounted) setState(() => pin = v); },
+        onStatus: (v) { if (mounted) setState(() => status = v); },
+        onError: (v) { if (mounted) setState(() => error = v); },
+      );
+      await controller.start();
+      if (status == 'STOPPED' && mounted) setState(() => active = false);
+    }
     else { await controller.stop(); if (mounted) setState(() { pin = '------'; status = 'NOT SHARING'; }); }
   }
 
   @override
-  void dispose() { controller.stop(); super.dispose(); }
+  void dispose() { controller.stop(); urlController.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -57,6 +70,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const Text('Consent-based remote support', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         const Text('Start a session only when you want this phone screen and device information visible on your computer.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+        const SizedBox(height: 20),
+        TextField(controller: urlController, enabled: !active, keyboardType: TextInputType.url,
+          decoration: const InputDecoration(labelText: 'PC signaling URL', hintText: 'ws://192.168.1.20:8787', border: OutlineInputBorder())),
+        const SizedBox(height: 6),
+        const Text('Use your PC LAN IP, not localhost. Android emulator: 10.0.2.2.', style: TextStyle(fontSize: 12, color: Colors.grey)),
         const SizedBox(height: 30),
         const Text('SESSION PIN', style: TextStyle(color: Colors.grey, letterSpacing: 2)),
         const SizedBox(height: 8),

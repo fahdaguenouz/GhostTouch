@@ -6,6 +6,10 @@ const devices = new Map();
 const peers = new Map();
 
 const server = new WebSocketServer({ port });
+server.on('error', (error) => {
+  console.error('Signaling server failed:', error);
+  process.exitCode = 1;
+});
 
 function send(socket, message) {
   if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
@@ -58,6 +62,9 @@ server.on('connection', (socket, request) => {
 
     if (message.type === 'JOIN_SESSION') {
       const pin = String(message.pin || '');
+      if (!/^\d{6}$/.test(pin)) return send(socket, { type: 'ERROR', code: 'INVALID_PIN', message: 'Enter a six-digit PIN.' });
+      if (socket.role === 'device') return send(socket, { type: 'ERROR', message: 'A phone cannot join as an operator.' });
+      if (peers.has(socket)) return send(socket, { type: 'ERROR', code: 'BUSY', message: 'Leave the current session before joining another.' });
       const device = devices.get(pin);
       if (!device || device.readyState !== WebSocket.OPEN) {
         return send(socket, { type: 'ERROR', code: 'PIN_NOT_FOUND', message: 'That PIN is not active. Check the phone and try again.' });
@@ -72,6 +79,8 @@ server.on('connection', (socket, request) => {
     }
 
     if (['OFFER', 'ANSWER', 'ICE_CANDIDATE'].includes(message.type)) {
+      if (message.type === 'OFFER' && socket.role !== 'operator') return;
+      if (message.type === 'ANSWER' && socket.role !== 'device') return;
       const peer = peers.get(socket);
       if (!peer) return send(socket, { type: 'ERROR', message: 'No paired peer' });
       return send(peer, message);
